@@ -4,12 +4,9 @@
 
 #include <netinet/in.h> // ntohs, ntohl.
 
-typedef u_int32_t n_time;
+#include <libnet.h>
 
-#include "libnet/include/libnet/libnet-macros.h"
-#include "libnet/include/libnet/libnet-headers.h"
-
-
+#define min(a, b) (((a) < (b)) ? (a) : (b))
 
 /*
  * print functions.
@@ -77,27 +74,17 @@ int main(int argc, char* argv[]) {
 
             /*
              * parse packet as ipv4.
-             *
-             * comment for (((u_int8_t *)ip4_hdr)[0] & 0xF) << 2
-             * => first one byte of ip header is ip version and header length.
-             * => upper 4 bits means ip version, lower 4 bits means header length.
-             * => original header length = 4 bit header length value * 4
              */
             struct libnet_ipv4_hdr *ip4_hdr = (struct libnet_ipv4_hdr *)(&frame[eth_hdr_size]);
-            int ip4_hdr_size = (((u_int8_t *)ip4_hdr)[0] & 0xF) << 2; // '<< 2' same as '* 4'
+            int ip4_hdr_size = ip4_hdr->ip_hl << 2; // '<< 2' same as '* 4'
 
             if(ip4_hdr->ip_p != 6) continue; // check that 4 layer protocol is tcp.
 
             /*
              * parse segment as tcp.
-             *
-             * comment for (((u_int8_t *)tcp_hdr)[12] & 0xF0) >> 2
-             * => upper 4 bits at 12th byte of tcp header is data offset.
-             * => data offset means start offset of payload from start of tcp header.
-             * => original tcp header length = 4 bit data offset value * 4
              */
             struct libnet_tcp_hdr *tcp_hdr = (struct libnet_tcp_hdr *)(&frame[eth_hdr_size+ip4_hdr_size]);
-            int tcp_hdr_size = (((u_int8_t *)tcp_hdr)[12] & 0xF0) >> 2; // original value is on upper 4 bits, so shift to right 2 count.
+            int tcp_hdr_size = tcp_hdr->th_off << 2; // '<< 2' same as '* 4'
 
             /*
              * extract a payload data and calculate a payload size.
@@ -165,8 +152,10 @@ void print_tcp_ports(struct libnet_tcp_hdr *tcp_hdr) {
  * ex) 00 11 22 33 44 55 66 77 88 99 AA BB CC DD EE FF
  */
 void print_payload(void *payload, int payload_len) {
+    int print_len = min(payload_len, 16);
+
     printf("Data: ");
-    for(int i = 0; i < payload_len && i < 16; i++) {
+    for(int i = 0; i < print_len; i++) {
         printf("%02x ", ((u_int8_t *)payload)[i]);
     }
     printf("\n");
